@@ -1,0 +1,65 @@
+{
+  "models": {
+    "small": {
+      "name": "Gemini 1.5 Flash-Lite (Small/Fast)",
+      "inputCostPerMillion": 0.075,
+      "outputCostPerMillion": 0.30,
+      "description": "Ultra-low cost and latency. Best for summarization, simple extractions, and basic QA."
+    },
+    "mid": {
+      "name": "Gemini 1.5 Flash (Balanced)",
+      "inputCostPerMillion": 0.150,
+      "outputCostPerMillion": 0.60,
+      "description": "High speed, large context window. Best for standard conversation, classification, and multi-document search."
+    },
+    "frontier": {
+      "name": "Gemini 1.5 Pro (Frontier Reasoner)",
+      "inputCostPerMillion": 1.250,
+      "outputCostPerMillion": 5.00,
+      "description": "State-of-the-art logical reasoning, software engineering, and complex math."
+    }
+  },
+  "rules": {
+    "tokenThresholds": {
+      "smallLimit": 1500,
+      "midLimit": 6000
+    },
+    "complexityKeywords": [
+      "refactor", "implement", "optimize", "architecture", "compile", "bug", "algorithm", "design pattern", 
+      "database schema", "concurrency", "regex", "mathematical", "differential", "proof", "derivation", 
+      "evaluate complexity", "deep analysis", "compare frameworks", "system design"
+    ],
+    "explicitTags": {
+      "fast": "small",
+      "cheap": "small",
+      "creative": "mid",
+      "accurate": "frontier",
+      "reasoning": "frontier",
+      "code": "frontier"
+    },
+    "costCap": {
+      "maxCostPerRequest": 0.02,
+      "enforceDowngradeOnCap": true
+    },
+    "preprocessing": {
+      "stripWhitespace": true,
+      "stripBoilerplate": true,
+      "compressHistory": true,
+      "maxHistoryTokens": 2000
+    }
+  },
+  "templates": [
+    {
+      "id": "summarize",
+      "name": "Document Summarization Template",
+      "content": "# TASK\nSummarize the following document into a concise executive summary. Highlight core objectives and key takeaways.\n\n# CONSTRAINTS\n- Limit summary to 3 bullet points.\n- Be objective, direct, and professional.\n\n# CONTENT\n{{content}}",
+      "variables": ["content"]
+    },
+    {
+      "id": "code_review",
+      "name": "Structured Code Review",
+      "content": "# SYSTEM\nYou are an expert senior software architect conducting a code review.\n\n# INSTRUCTIONS\nAnalyze the code provided below for potential bugs, memory leaks, performance bottlenecks, and design improvements.\n\n# TARGET CODE\nLanguage: {{language}}\n\n```{{language}}\n{{code}}\n```\n\n# OUTPUT FORMAT\nProvide feedback in these sections:\n- ## Critical Issues\n- ## Performance Details\n- ## Stylistic Recommendations",
+      "variables": ["language", "code"]
+    }
+  ]
+}
