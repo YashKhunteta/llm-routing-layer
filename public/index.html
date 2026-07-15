@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LLM Routing Layer & Cost Dashboard</title>
+  <!-- Google Fonts: Inter & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <!-- Lucide Icons CDN -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="dark-theme">
+  
+  <!-- Navigation Sidebar -->
+  <aside class="sidebar">
+    <div class="logo-container">
+      <div class="logo-icon"><i data-lucide="shuffle"></i></div>
+      <div class="logo-text">
+        <span class="logo-main">Aether</span>
+        <span class="logo-sub">Routing Layer</span>
+      </div>
+    </div>
+    
+    <nav class="nav-menu">
+      <button class="nav-item active" data-tab="playground">
+        <i data-lucide="terminal"></i> <span>Playground</span>
+      </button>
+      <button class="nav-item" data-tab="analytics">
+        <i data-lucide="bar-chart-3"></i> <span>Analytics</span>
+      </button>
+      <button class="nav-item" data-tab="templates">
+        <i data-lucide="layout-template"></i> <span>Templates</span>
+      </button>
+      <button class="nav-item" data-tab="rules">
+        <i data-lucide="settings"></i> <span>Routing Rules</span>
+      </button>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="server-status">
+        <span class="status-indicator online"></span>
+        <span class="status-text">Server: Online</span>
+      </div>
+      <div class="mode-badge">Simulation Mode</div>
+    </div>
+  </aside>
+
+  <!-- Main Content Area -->
+  <main class="content-wrapper">
+    
+    <!-- HEADER -->
+    <header class="top-header">
+      <div class="header-title">
+        <h1 id="page-title">Developer Playground</h1>
+        <p id="page-subtitle" class="text-secondary">Simulate or run real prompts through the preprocessor & router pipeline.</p>
+      </div>
+      <div class="api-key-badge-container">
+        <span class="api-badge gemini-badge">Gemini: Mock</span>
+        <span class="api-badge openai-badge">OpenAI: Mock</span>
+      </div>
+    </header>
+
+    <!-- PLAYGROUND TAB -->
+    <section id="tab-playground" class="tab-content active">
+      <div class="playground-grid">
+        
+        <!-- Left: Input Controls -->
+        <div class="card input-card">
+          <div class="card-header">
+            <h3><i data-lucide="edit-3"></i> Prompt Composer</h3>
+            <button class="btn btn-secondary btn-sm" id="btn-clear-playground">Clear</button>
+          </div>
+          
+          <div class="card-body">
+            <!-- Template Quick Selector -->
+            <div class="form-group">
+              <label for="playground-template">Apply Markdown Template</label>
+              <select id="playground-template" class="form-control">
+                <option value="">-- None (Raw Text) --</option>
+              </select>
+            </div>
+
+            <!-- Dynamic Template Variables Fields -->
+            <div id="template-variables-container" class="variables-box hidden">
+              <h4>Template Variables</h4>
+              <div id="dynamic-variable-inputs"></div>
+            </div>
+
+            <!-- Main Prompt Input -->
+            <div class="form-group" id="prompt-input-group">
+              <label for="playground-prompt">Input Prompt</label>
+              <div class="textarea-wrapper">
+                <textarea id="playground-prompt" class="form-control text-mono" rows="8" placeholder="Type your prompt here... For testing, try adding inline overrides like [fast], [accurate] or [costCap:0.001]. Try including code or lengthy instructions."></textarea>
+                <div class="token-counter" id="input-token-counter">0 chars (~0 tokens)</div>
+              </div>
+            </div>
+
+            <!-- Optional Chat History Simulation -->
+            <div class="collapsible-section">
+              <button class="collapsible-trigger" id="toggle-history">
+                <i data-lucide="chevron-right"></i> Add Chat History Context (For History Trimming)
+              </button>
+              <div class="collapsible-content hidden" id="history-content">
+                <div id="chat-history-list"></div>
+                <button class="btn btn-secondary btn-sm mt-2" id="btn-add-history"><i data-lucide="plus"></i> Add Turn</button>
+              </div>
+            </div>
+
+            <!-- Routing Overrides & Config -->
+            <div class="routing-settings-panel">
+              <h4>Routing Override Signals (Optional)</h4>
+              <div class="settings-row">
+                <div class="form-group flex-1">
+                  <label for="override-tag">Force Tag Override</label>
+                  <select id="override-tag" class="form-control">
+                    <option value="">-- Let Router Classify --</option>
+                    <option value="fast">fast (Small tier)</option>
+                    <option value="cheap">cheap (Small tier)</option>
+                    <option value="creative">creative (Mid tier)</option>
+                    <option value="accurate">accurate (Frontier tier)</option>
+                  </select>
+                </div>
+                <div class="form-group flex-1">
+                  <label for="override-cost-cap">Force Cost Cap ($)</label>
+                  <input type="number" id="override-cost-cap" class="form-control" placeholder="e.g. 0.005" step="0.0001" min="0">
+                </div>
+              </div>
+            </div>
+
+            <button class="btn btn-primary btn-block btn-lg mt-4" id="btn-execute-route">
+              <span>Execute Route Pipeline</span> <i data-lucide="play"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Right: Real-time Pipeline Visualizer -->
+        <div class="card visualizer-card">
+          <div class="card-header">
+            <h3><i data-lucide="activity"></i> Step-by-Step Routing Pipeline</h3>
+          </div>
+          
+          <div class="card-body pipeline-container">
+            
+            <div class="pipeline-placeholder" id="pipeline-idle-placeholder">
+              <i data-lucide="git-pull-request" class="pulse-icon"></i>
+              <p>Compose a prompt and trigger execution to view the pipeline analysis in real-time.</p>
+            </div>
+
+            <div class="pipeline-flow hidden" id="pipeline-active-flow">
+              
+              <!-- Step 1: Preprocessor -->
+              <div class="pipeline-step" id="step-preprocessing">
+                <div class="step-badge">1</div>
+                <div class="step-content">
+                  <div class="step-title">
+                    <h4>Preprocessor Optimizer</h4>
+                    <span class="badge badge-success" id="token-saving-badge">-0% tokens</span>
+                  </div>
+                  <p class="step-desc">Strips white spaces, conversational boilerplate, and restructures to Markdown (.md) template.</p>
+                  
+                  <div class="diff-view mt-3">
+                    <div class="diff-pane">
+                      <h5>Original</h5>
+                      <pre id="preproc-diff-original" class="text-mono"></pre>
+                    </div>
+                    <div class="diff-pane">
+                      <h5>Preprocessed</h5>
+                      <pre id="preproc-diff-cleaned" class="text-mono"></pre>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Step 2: Classifier Router -->
+              <div class="pipeline-step" id="step-router">
+                <div class="step-badge">2</div>
+                <div class="step-content">
+                  <div class="step-title">
+                    <h4>Routing & Classification Engine</h4>
+                    <span class="badge" id="routed-tier-badge">TIER</span>
+                  </div>
+                  <p class="step-desc">Analyzes token volumes, task complexity triggers, tags, and request budget caps.</p>
+                  
+                  <div class="signals-grid mt-3">
+                    <div class="signal-item">
+                      <span class="signal-label">Token Volume:</span>
+                      <span class="signal-val" id="signal-token-val">0 tokens</span>
+                    </div>
+                    <div class="signal-item">
+                      <span class="signal-label">Task Type:</span>
+                      <span class="signal-val text-capitalize" id="signal-task-val">General</span>
+                    </div>
+                    <div class="signal-item">
+                      <span class="signal-label">Code Detected:</span>
+                      <span class="signal-val" id="signal-code-val">No</span>
+                    </div>
+                    <div class="signal-item">
+                      <span class="signal-label">Cost Cap Constraint:</span>
+                      <span class="signal-val" id="signal-cap-val">$0.02</span>
+                    </div>
+                  </div>
+
+                  <div class="pipeline-notations mt-3">
+                    <div class="notation-item hidden" id="notation-tag-override">
+                      <i data-lucide="info" class="text-info"></i> <span id="tag-override-text">Tag override applied.</span>
+                    </div>
+                    <div class="notation-item danger hidden" id="notation-cost-downgrade">
+                      <i data-lucide="alert-triangle" class="text-danger"></i> <span id="cost-downgrade-text">Cost cap forced downgrade.</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Step 3: Model Execution -->
+              <div class="pipeline-step" id="step-execution">
+                <div class="step-badge">3</div>
+                <div class="step-content">
+                  <div class="step-title">
+                    <h4>Execution Provider</h4>
+                    <span class="badge badge-secondary" id="latency-badge">0ms</span>
+                  </div>
+                  <p class="step-desc">Sends payload to selected model instance. Running in <span id="sim-badge" class="text-mono">simulation mode</span>.</p>
+                  
+                  <div class="execution-model-display mt-3">
+                    <div class="model-badge" id="selected-model-pill">Model Name</div>
+                  </div>
+
+                  <div class="output-response-box mt-3">
+                    <h5>Model Output</h5>
+                    <pre id="execution-response-text" class="text-mono"></pre>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Step 4: Cost Savings Banner -->
+              <div class="savings-banner" id="step-savings">
+                <div class="savings-icon"><i data-lucide="sparkles"></i></div>
+                <div class="savings-info">
+                  <h4>Total Cost Savings</h4>
+                  <div class="savings-details">
+                    <div>Actual Cost: <strong id="cost-actual">$0.00000</strong></div>
+                    <div>Frontier Baseline Cost: <strong id="cost-frontier">$0.00000</strong></div>
+                  </div>
+                </div>
+                <div class="savings-percent" id="savings-dollar-amount">+$0.00</div>
+              </div>
+
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ANALYTICS TAB -->
+    <section id="tab-analytics" class="tab-content">
+      <!-- High Level Metrics Row -->
+      <div class="metrics-grid">
+        <div class="card metric-card">
+          <div class="metric-icon green"><i data-lucide="database"></i></div>
+          <div class="metric-info">
+            <span class="metric-label">Total Queries</span>
+            <h3 class="metric-value" id="metric-total-requests">0</h3>
+          </div>
+        </div>
+        <div class="card metric-card">
+          <div class="metric-icon purple"><i data-lucide="banknote"></i></div>
+          <div class="metric-info">
+            <span class="metric-label">Aggregate Savings</span>
+            <h3 class="metric-value text-accent" id="metric-total-savings">$0.00</h3>
+          </div>
+        </div>
+        <div class="card metric-card">
+          <div class="metric-icon cyan"><i data-lucide="zap"></i></div>
+          <div class="metric-info">
+            <span class="metric-label">Average Compress Ratio</span>
+            <h3 class="metric-value" id="metric-avg-compression">0%</h3>
+          </div>
+        </div>
+        <div class="card metric-card">
+          <div class="metric-icon orange"><i data-lucide="clock"></i></div>
+          <div class="metric-info">
+            <span class="metric-label">Average Latency</span>
+            <h3 class="metric-value" id="metric-avg-latency">0ms</h3>
+          </div>
+        </div>
+      </div>
+
+      <!-- Charts Section -->
+      <div class="charts-grid mt-4">
+        <!-- Cumulative Savings -->
+        <div class="card chart-card">
+          <div class="card-header">
+            <h3>Cumulative Dollar Savings ($)</h3>
+          </div>
+          <div class="card-body">
+            <canvas id="chart-savings"></canvas>
+          </div>
+        </div>
+
+        <!-- Model Tier Distribution -->
+        <div class="card chart-card">
+          <div class="card-header">
+            <h3>Request Share by Tier</h3>
+          </div>
+          <div class="card-body doughnut-chart-container">
+            <canvas id="chart-distribution"></canvas>
+          </div>
+        </div>
+
+        <!-- Token Reduction Comparison -->
+        <div class="card chart-card">
+          <div class="card-header">
+            <h3>Token Volume Reduction (Input vs Preprocessed)</h3>
+          </div>
+          <div class="card-body">
+            <canvas id="chart-token-reduction"></canvas>
+          </div>
+        </div>
+
+        <!-- Latency vs Cost analysis -->
+        <div class="card chart-card">
+          <div class="card-header">
+            <h3>Transaction Latency distribution (ms)</h3>
+          </div>
+          <div class="card-body">
+            <canvas id="chart-latency"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Historical Logs Table -->
+      <div class="card mt-4 table-card">
+        <div class="card-header">
+          <h3>Telemetry Routing Logs</h3>
+          <button class="btn btn-secondary btn-sm" id="btn-refresh-logs"><i data-lucide="refresh-cw"></i> Refresh</button>
+        </div>
+        <div class="card-body overflow-x">
+          <table class="table" id="logs-table">
+            <thead>
+              <tr>
+                <th>Timestamp</th>
+                <th>Original Tokens</th>
+                <th>Preprocessed Tokens</th>
+                <th>Routed Tier</th>
+                <th>Actual Cost</th>
+                <th>Frontier Cost</th>
+                <th>Savings ($)</th>
+                <th>Latency</th>
+                <th>Mode</th>
+              </tr>
+            </thead>
+            <tbody id="logs-table-body">
+              <tr>
+                <td colspan="9" class="text-center">Loading logs history...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- TEMPLATES TAB -->
+    <section id="tab-templates" class="tab-content">
+      <div class="templates-grid">
+        <!-- Left: Register Template Form -->
+        <div class="card">
+          <div class="card-header">
+            <h3><i data-lucide="plus-circle"></i> Register Prompt Template</h3>
+          </div>
+          <div class="card-body">
+            <form id="template-form">
+              <div class="form-group">
+                <label for="template-id">Template ID (Unique reference, no spaces)</label>
+                <input type="text" id="template-id" class="form-control text-mono" placeholder="e.g. sql_writer" required>
+              </div>
+              <div class="form-group">
+                <label for="template-name">Human-readable Name</label>
+                <input type="text" id="template-name" class="form-control" placeholder="e.g. Structured SQL Writer" required>
+              </div>
+              <div class="form-group">
+                <label for="template-variables">Variables (Comma separated list)</label>
+                <input type="text" id="template-variables" class="form-control text-mono" placeholder="e.g. table_name, schema_details">
+                <small class="form-help">Use these variables inside the template content inside double curly braces: <code>{{variable_name}}</code></small>
+              </div>
+              <div class="form-group">
+                <label for="template-content">Structured Markdown Template Content</label>
+                <textarea id="template-content" class="form-control text-mono" rows="12" placeholder="# TASK&#10;Write a SQL query for {{table_name}}...&#10;&#10;# SCHEMA DETAILS&#10;{{schema_details}}" required></textarea>
+              </div>
+              <button type="submit" class="btn btn-primary btn-block"><i data-lucide="save"></i> Save Template</button>
+            </form>
+          </div>
+        </div>
+
+        <!-- Right: Active Templates List -->
+        <div class="card">
+          <div class="card-header">
+            <h3><i data-lucide="list"></i> Structured Template Registry</h3>
+          </div>
+          <div class="card-body">
+            <p class="text-secondary mb-4">Templates stored server-side are hydrated dynamically, avoiding sending system instructions in the initial API payload from client to router.</p>
+            <div class="templates-list" id="templates-list-container">
+              <!-- Dynamically populated -->
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- RULES CONFIG TAB -->
+    <section id="tab-rules" class="tab-content">
+      <div class="rules-grid">
+        
+        <!-- Pricing Card -->
+        <div class="card">
+          <div class="card-header">
+            <h3><i data-lucide="dollar-sign"></i> Model Pricing Configurations</h3>
+          </div>
+          <div class="card-body">
+            <form id="pricing-config-form">
+              
+              <!-- Small Tier -->
+              <div class="pricing-tier-group">
+                <h4>Small Model Tier</h4>
+                <div class="form-group">
+                  <label for="price-small-name">Model Display Name</label>
+                  <input type="text" id="price-small-name" class="form-control" required>
+                </div>
+                <div class="settings-row">
+                  <div class="form-group flex-1">
+                    <label for="price-small-in">Input Cost / Million ($)</label>
+                    <input type="number" id="price-small-in" class="form-control text-mono" step="0.001" required>
+                  </div>
+                  <div class="form-group flex-1">
+                    <label for="price-small-out">Output Cost / Million ($)</label>
+                    <input type="number" id="price-small-out" class="form-control text-mono" step="0.001" required>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Mid Tier -->
+              <div class="pricing-tier-group mt-4">
+                <h4>Mid Model Tier</h4>
+                <div class="form-group">
+                  <label for="price-mid-name">Model Display Name</label>
+                  <input type="text" id="price-mid-name" class="form-control" required>
+                </div>
+                <div class="settings-row">
+                  <div class="form-group flex-1">
+                    <label for="price-mid-in">Input Cost / Million ($)</label>
+                    <input type="number" id="price-mid-in" class="form-control text-mono" step="0.001" required>
+                  </div>
+                  <div class="form-group flex-1">
+                    <label for="price-mid-out">Output Cost / Million ($)</label>
+                    <input type="number" id="price-mid-out" class="form-control text-mono" step="0.001" required>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Frontier Tier -->
+              <div class="pricing-tier-group mt-4">
+                <h4>Frontier Model Tier</h4>
+                <div class="form-group">
+                  <label for="price-frontier-name">Model Display Name</label>
+                  <input type="text" id="price-frontier-name" class="form-control" required>
+                </div>
+                <div class="settings-row">
+                  <div class="form-group flex-1">
+                    <label for="price-frontier-in">Input Cost / Million ($)</label>
+                    <input type="number" id="price-frontier-in" class="form-control text-mono" step="0.001" required>
+                  </div>
+                  <div class="form-group flex-1">
+                    <label for="price-frontier-out">Output Cost / Million ($)</label>
+                    <input type="number" id="price-frontier-out" class="form-control text-mono" step="0.001" required>
+                  </div>
+                </div>
+              </div>
+
+              <button type="submit" class="btn btn-primary mt-4"><i data-lucide="check"></i> Save Pricing Settings</button>
+            </form>
+          </div>
+        </div>
+
+        <!-- Routing Logic Card -->
+        <div class="card">
+          <div class="card-header">
+            <h3><i data-lucide="sliders"></i> Router Engine Thresholds</h3>
+          </div>
+          <div class="card-body">
+            <form id="routing-rules-form">
+              
+              <!-- Token Bounds -->
+              <div class="pricing-tier-group">
+                <h4>Token Thresholds</h4>
+                <div class="settings-row">
+                  <div class="form-group flex-1">
+                    <label for="rules-small-limit">Small -> Mid Limit (Tokens)</label>
+                    <input type="number" id="rules-small-limit" class="form-control" required>
+                  </div>
+                  <div class="form-group flex-1">
+                    <label for="rules-mid-limit">Mid -> Frontier Limit (Tokens)</label>
+                    <input type="number" id="rules-mid-limit" class="form-control" required>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Complexity keywords -->
+              <div class="pricing-tier-group mt-4">
+                <h4>Complexity Flags</h4>
+                <div class="form-group">
+                  <label for="rules-keywords">Complexity Keywords (Comma separated)</label>
+                  <textarea id="rules-keywords" class="form-control text-mono" rows="4" required></textarea>
+                  <small class="form-help">If prompt matches any of these, it will trigger higher routing levels.</small>
+                </div>
+              </div>
+
+              <!-- Budget Caps -->
+              <div class="pricing-tier-group mt-4">
+                <h4>Budget Caps & Safeguards</h4>
+                <div class="settings-row">
+                  <div class="form-group flex-1">
+                    <label for="rules-max-cost">Request Cost Cap ($)</label>
+                    <input type="number" id="rules-max-cost" class="form-control text-mono" step="0.0001" required>
+                  </div>
+                  <div class="form-group flex-1 checkbox-group-container">
+                    <label class="checkbox-container">
+                      <input type="checkbox" id="rules-enforce-downgrade">
+                      <span class="checkmark"></span>
+                      Enforce Downgrade on Cap
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Preprocessing toggles -->
+              <div class="pricing-tier-group mt-4">
+                <h4>Preprocessor Rules</h4>
+                <div class="checkbox-grid">
+                  <label class="checkbox-container">
+                    <input type="checkbox" id="preproc-whitespace">
+                    <span class="checkmark"></span>
+                    Strip White Spaces
+                  </label>
+                  <label class="checkbox-container">
+                    <input type="checkbox" id="preproc-boilerplate">
+                    <span class="checkmark"></span>
+                    Strip Greetings & Boilerplate
+                  </label>
+                  <label class="checkbox-container">
+                    <input type="checkbox" id="preproc-markdown">
+                    <span class="checkmark"></span>
+                    Auto-Convert to Structured Markdown
+                  </label>
+                  <label class="checkbox-container">
+                    <input type="checkbox" id="preproc-history">
+                    <span class="checkmark"></span>
+                    Compress History context
+                  </label>
+                </div>
+              </div>
+
+              <button type="submit" class="btn btn-primary mt-4"><i data-lucide="check"></i> Save Rules Configuration</button>
+            </form>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Script entrypoint -->
+  <script src="app.js"></script>
+</body>
+</html>
