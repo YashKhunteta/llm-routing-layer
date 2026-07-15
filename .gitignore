@@ -1,0 +1,9 @@
+node_modules/
+.env
+data/logs.json
+*.log
+.system_generated/
+.tempmediaStorage/
+browser/
+upload-to-github.js
+
